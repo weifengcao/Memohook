@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+
+# Flutter / Dart
+**/build/
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+**/.idea/
+**/.vscode/
+*.iml
+.dart_tool/
+.packages
+
+# iOS / Android
+**/Pods/
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/.symlinks/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/local.properties
+
+# Generated artifacts
+**/flutter_export_environment.sh
+**/GeneratedPluginRegistrant.*
+
+# Coverage & logs
+coverage/
+*.log
+
+# Temporary files
+*.tmp
