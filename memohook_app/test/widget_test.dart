@@ -14,7 +14,13 @@ void main() {
   testWidgets('Voice capture entry point is available', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MemohookApp());
+    await tester.pumpWidget(
+      const MemohookApp(
+        useFirestore: false,
+        useGemini: false,
+        useSpeechToText: false,
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.textContaining('remember or ask'), findsOneWidget);
