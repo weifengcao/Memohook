@@ -1,131 +1,201 @@
-# Memohook
-Version: 1.0
-Status: Draft
-Author: Weifeng Cao
-Date: 2024-05-24
+# Memohook Technical Design
+
+- Version: 1.0
+- Status: Draft
+- Author: Weifeng Cao
+- Last Updated: 2024-10-02
 
 ## Table of Contents
-1. [Introduction](#1-introduction)
-2. [Goals and Scope](#2-goals-and-scope)
-3. [User Personas](#3-user-personas)
-4. [System Requirements](#4-system-requirements)
-5. [System Architecture](#5-system-architecture)
-6. [Data Model (Firestore)](#6-data-model-firestore)
-7. [Security and Privacy](#7-security-and-privacy)
-8. [Deployment and Maintenance](#8-deployment-and-maintenance)
-9. [Roadmap (Future Considerations)](#9-roadmap-future-considerations)
+- [Executive Summary](#executive-summary)
+- [Product Overview](#product-overview)
+- [Goals and Scope](#goals-and-scope)
+- [Personas and Use Cases](#personas-and-use-cases)
+- [Functional Requirements](#functional-requirements)
+- [Non-Functional Requirements](#non-functional-requirements)
+- [System Architecture](#system-architecture)
+- [Data Architecture](#data-architecture)
+- [LLM Interaction Model](#llm-interaction-model)
+- [Security, Privacy, and Compliance](#security-privacy-and-compliance)
+- [Operational Readiness](#operational-readiness)
+- [Risks and Mitigations](#risks-and-mitigations)
+- [Testing and Validation](#testing-and-validation)
+- [Roadmap](#roadmap)
+- [Dependencies and Assumptions](#dependencies-and-assumptions)
+- [Glossary](#glossary)
 
-1. Introduction
-1.1. Purpose of this Document
-This document provides a detailed technical design and specification for the Memohook application. It serves as a blueprint for development, outlining the system's architecture, functional and non-functional requirements, data models, and strategic decisions.
-1.2. Project Overview
-Memohook is a digital memory aid designed with a "voice-first, intent-less" interface. Its primary goal is to allow users, particularly seniors, to effortlessly log daily activities and query them later using natural speech, reducing the cognitive load of traditional applications. The system leverages a Large Language Model (LLM) to interpret user intent, differentiating between logging a memory and asking a question.
-1.3. Guiding Principle: Effortless Interaction
-The core philosophy is to eliminate all points of friction. The user should not have to make any decisions (e.g., "am I logging or searching?"). They open the app and talk; the app does the rest.
-2. Goals and Scope
-2.1. Goals
-Primary User Goal: Provide a frictionless way for individuals with mild memory difficulties to record and retrieve information about daily tasks (e.g., taking medication, locking doors).
-Secondary User Goal: Serve as a simple, voice-driven chronicle for capturing personal life moments.
-Technical Goal: To build and validate the "intent-less" UI pattern as a Minimum Viable Product (MVP) on a web platform.
-2.2. Non-Goals (Out of Scope)
-Social Features: This is a private, single-user application. There will be no sharing, friend lists, or social feeds.
-Rich Media in MVP: The initial web app will not support uploading or storing photos, videos, or audio files. This is a consideration for a future native app.
-Complex User Accounts: The system will use anonymous, session-based authentication. There will be no user registration, profiles, or password management.
-3. User Personas
-David (Primary Persona): A 75-year-old retiree who lives independently. He is generally healthy but experiences common, age-related memory lapses for small, repetitive tasks. He finds modern smartphones and apps confusing and is easily frustrated by complex menus. His primary need is for a tool that feels as simple as talking to a person.
-Sarah (Secondary Persona / Creator): A 40-year-old tech-savvy professional. She is David's daughter and the originator of the project. She wants a tool to help her father maintain his independence and confidence. She also sees the potential to use the same simple interface to capture memories of her own young children for a future "digital chronicle."
-4. System Requirements
-4.1. Functional Requirements
-ID
-Requirement
-FR1
-The system shall present a single, primary action button to initiate voice input.
-FR2
-The system shall capture the user's speech and transcribe it into text.
-FR3
-The system must use an LLM to classify the transcribed text into one of two intents: LOG (a statement) or QUERY (a question).
-FR4
-For LOG intents, the system shall save the transcribed text with a server-generated timestamp to a persistent database.
-FR5
-For QUERY intents, the system shall use the LLM to extract relevant keywords.
-FR6
-The system shall search the user's persisted logs using the extracted keywords.
-FR7
-If a match is found for a QUERY, the system shall display the most recent relevant log entry prominently.
-FR8
-The user shall be able to trigger a summarization of all logs created on the current day.
-FR9
-The user shall be able to trigger an LLM-powered expansion of a specific log entry into a more narrative format.
+## Executive Summary
+Memohook is a cross-platform, voice-first memory companion designed to help seniors and caregivers capture and recall daily events without cognitive friction. The system combines Flutter for client experiences, Firebase for backend services, and Google Gemini for language understanding. This design document outlines the product objectives, architecture, and operational plan required to deliver a production-ready MVP with a clear path to future enhancements.
 
-4.2. Non-Functional Requirements
-ID
-Requirement
-Metric/Constraint
-NFR1
-Performance:
-End-to-end response time (from end of speech to UI update) should be under 5 seconds.
-NFR2
-Usability/Accessibility:
-The interface must be navigable with a single tap. It must adhere to WCAG 2.1 AA for contrast and font size.
-NFR3
-Security:
-All user data must be private and isolated. A user must not be able to access another user's data.
-NFR4
-Data Integrity:
-Timestamps must be immutable and generated by the server to ensure chronological accuracy.
-NFR5
-Reliability:
-The service must have an uptime of 99.9% (to be provided by the underlying cloud infrastructure).
+## Product Overview
+- **Problem Statement:** Seniors with mild memory challenges struggle to remember routine tasks and find traditional apps overwhelming.
+- **Solution:** Provide an intent-less, conversational interface that automatically distinguishes between logging events and querying prior memories.
+- **Success Metrics (MVP):**
+  - ≥80% of captured logs successfully classified as LOG with no manual correction.
+  - Mean response time (speech end → UI response) ≤5 seconds.
+  - ≥60% weekly active retention among pilot cohort.
 
-5. System Architecture
-5.1. High-Level Design
-The system is a client-server architecture composed of a pure client-side web application and a cloud-based backend-as-a-service (BaaS).
-Client (Browser): A single HTML/CSS/JavaScript file responsible for all UI rendering, capturing voice via the webkitSpeechRecognition API, and communicating with the backend services.
-Backend (Google Firebase): Provides authentication, a NoSQL database (Firestore), and serverless infrastructure.
-AI Service (Google Gemini): A third-party API endpoint that provides the core intent recognition and text generation logic.
-5.2. Frontend
-Framework: None (Vanilla JavaScript) to maintain simplicity and performance.
-Styling: Tailwind CSS for a modern, responsive utility-first design.
-State Management: Managed in memory within the JavaScript runtime.
-5.3. Backend
-Authentication: Firebase Auth will be used for anonymous authentication. This provides a unique, stable userId for each user/device without requiring them to register, which is critical for data segregation.
-Database: Firestore is the database of choice due to its real-time capabilities, scalability, and robust security model.
-5.4. AI / Intent Recognition
-Model: Google's gemini-2.5-flash-preview-05-20 will be used for its balance of speed and capability.
-API Interaction:
-The client will make structured requests to the Gemini API. All prompts will instruct the model to respond only with a valid JSON object.
-*   **Intent Recognition**: The primary prompt will classify the user's input.
-    *   **System Prompt**: `You are an intent classifier. Analyze the user's text. Respond with a JSON object containing two keys: "intent", which can be "LOG" or "QUERY", and "keywords", an array of 1-3 lowercase strings that are the most relevant nouns or verbs for a search. If the intent is "LOG", the keywords array can be empty.`
-    *   **Example Response**: `{"intent": "QUERY", "keywords": ["medication", "morning"]}`
-*   **Summarization**:
-    *   **System Prompt**: `You are a summarization assistant. The user will provide a list of their activities. Summarize them into a brief, friendly, single-paragraph narrative. Respond only with a JSON object containing one key: "summary".`
-*   **Expansion**:
-    *   **System Prompt**: `You are a creative writing assistant. The user will provide a short memory log. Expand it into a short, one-paragraph story in the first person. Respond only with a JSON object containing one key: "story".`
-6. Data Model (Firestore)
-The data will be stored in a root collection named artifacts. Data is segregated by application ID and then by user ID.
+## Goals and Scope
+
+### In-Scope Objectives
+- Validate the voice-first, intent-less interaction model across web and mobile targets using a shared Flutter codebase.
+- Persist user memory logs securely with reliable retrieval and summarization experiences.
+- Provide caregivers with confidence that sensitive data remains private and accessible only to the intended user.
+
+### Out-of-Scope Items (MVP)
+- Social or multi-user collaboration features.
+- Rich media capture (photos, videos, audio uploads).
+- Account management workflows beyond anonymous authentication.
+
+## Personas and Use Cases
+
+### Primary Personas
+- **David – Independent Senior:** Needs an effortless way to record daily actions (e.g., medication adherence, home security checks) and confirm completion later.
+- **Sarah – Caregiver and Sponsor:** Requires assurance that her father can log and recall activities independently, while she evaluates future storytelling use cases.
+
+### Core Use Cases
+1. **Capture Memory:** David opens Memohook, speaks a statement, and the app stores it as a time-stamped memory.
+2. **Recall Memory:** David asks a question (e.g., “Did I take my morning pills?”) and receives the most relevant log entry.
+3. **Daily Summary:** David requests a summary of today’s activities and gets a concise narrative.
+4. **Memory Expansion:** David selects a specific log to generate a richer, story-like version for journaling.
+
+## Functional Requirements
+
+| ID  | Requirement | Priority |
+| --- | ----------- | -------- |
+| FR1 | Provide a single primary action to initiate voice capture. | Must-have |
+| FR2 | Transcribe user speech to text using on-device (where available) or platform speech APIs. | Must-have |
+| FR3 | Classify transcriptions into `LOG` or `QUERY` intents using an LLM. | Must-have |
+| FR4 | Persist `LOG` entries with server-generated timestamps and optional keywords. | Must-have |
+| FR5 | Extract search keywords for `QUERY` intents to retrieve relevant logs. | Must-have |
+| FR6 | Display the most recent relevant log entry for a `QUERY`. | Must-have |
+| FR7 | Generate a natural-language summary of all logs for the current day. | Should-have |
+| FR8 | Expand a selected log entry into a short narrative using the LLM. | Should-have |
+| FR9 | Provide basic offline handling (queue logs, warn on query attempts). | Should-have |
+| FR10 | Allow manual text entry fallback when voice capture fails. | Could-have |
+
+## Non-Functional Requirements
+
+| ID   | Category | Requirement | Target |
+| ---- | -------- | ----------- | ------ |
+| NFR1 | Performance | End-to-end latency (speech end → response) | ≤5 s (p95) |
+| NFR2 | Reliability | Service uptime | ≥99.9% |
+| NFR3 | Usability | WCAG 2.1 AA compliance for contrast and font size; one-tap navigation | 100% of UI |
+| NFR4 | Security | Enforce per-user data isolation via Firebase Security Rules | 100% coverage |
+| NFR5 | Data Integrity | Server-side timestamp immutability; no client overrides | 100% of writes |
+| NFR6 | Observability | Collect structured logs and metrics for speech capture, LLM calls, and Firestore ops | MVP-ready dashboards |
+
+## System Architecture
+
+### High-Level Components
+- **Flutter Client:** Cross-platform application responsible for UI rendering, voice capture, optimistic UI updates, and orchestrating API calls.
+- **Firebase Backend:** Provides anonymous authentication, Firestore document storage, and Cloud Functions for secure server-side operations.
+- **Google Gemini Service:** Handles intent classification, keyword extraction, summarization, and narrative expansion.
+
+### Component Responsibilities
+- **Presentation Layer (Flutter):** Implements accessibility-compliant UI, manages voice capture state, and surfaces responses.
+- **Application Layer (Flutter):** Manages state (Riverpod/Provider), handles offline queuing, and invokes backend services.
+- **Integration Layer:**
+  - **Speech-to-Text Adapter:** Wraps native speech APIs via `speech_to_text` package.
+  - **LLM Client:** Sends structured prompts to Gemini, enforces JSON responses, applies retry/backoff strategy.
+- **Backend Services:**
+  - **Auth:** Issues anonymous user IDs; enforces device-level persistence.
+  - **Firestore:** Stores logs keyed by user ID with composite indexes for keyword queries.
+  - **Cloud Functions (Future):** Optional layer for sensitive operations (e.g., advanced analytics) kept out of the client.
+
+### Sequence Overview (Query Flow)
+1. User initiates voice capture.
+2. Client records audio and obtains transcription.
+3. LLM classifies intent; returns keywords.
+4. Client queries Firestore using keywords; applies client-side ranking (recency first).
+5. Result displayed with timestamp; optional summarization invoked if no direct match.
+
+## Data Architecture
+
+### Firestore Structure
+
+```
 /artifacts/{appId}/users/{userId}/logs/{logId}
-
-
-logId: Auto-generated by Firestore.
-Document Fields:
-text: (String) The content of the memory log. E.g., "I just fed the dog."
-timestamp: (Timestamp) The server-side timestamp of when the log was created.
-keywords: (Array<String>) An array of lowercase keywords extracted by the LLM during a LOG intent. E.g., `["fed", "dog"]`. This field is used for efficient querying.
-7. Security and Privacy
-Data Isolation: Firestore Security Rules will be implemented to ensure a user can only read and write to their own data path.
-```
-match /artifacts/{appId}/users/{userId}/logs/{logId} {
-  allow read, write: if request.auth.uid == userId && exists(/databases/$(database)/documents/artifacts/$(appId));
-}
 ```
 
-Data in Transit: All communication with Firebase and the Gemini API will be over HTTPS.
-Privacy: No personally identifiable information (PII) is explicitly collected. However, the content of the logs is sensitive and must be protected as such.
-8. Deployment and Maintenance
-The web application will be deployed as a static site using Firebase Hosting. This provides a global CDN, automated SSL, and simple deployment from the command line. Maintenance will be minimal, primarily involving monitoring API quotas and Firebase usage.
-9. Roadmap (Future Considerations)
-Phase 0 (Setup): Configure Firebase project, set up authentication, define Firestore security rules, and provision API keys for Google Gemini.
-Phase 1 (MVP): Build and deploy the web application as described in this document. Gather initial feedback from the target personas.
-Phase 2 (Mobile): Begin development of a native mobile application (using Flutter) to enable features like home screen widgets and potential OS-level voice activation.
-Phase 3 (Enrichment): Implement Text-to-Speech (TTS) to provide auditory feedback, making the experience fully conversational.
-Phase 4 (Media): Re-introduce the ability to attach photos/videos, storing them in Firebase Storage and linking them to log entries.
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `text` | String | User-provided transcription for log entries. |
+| `timestamp` | Timestamp | Server-generated creation time. |
+| `keywords` | Array<String> | Tokenized keywords extracted during LOG flows. |
+| `source` | String | Origin of entry (`speech`, `text`, `import`). |
+| `summaries.daily` | Map | Cached daily summaries keyed by ISO date. |
+
+### Indexing Strategy
+- Composite index on `keywords` + `timestamp` descending to support keyword searches.
+- TTL-like cleanup handled via scheduled Cloud Function for stale summaries (Phase 2).
+
+### Data Lifecycle
+- **Retention:** Logs retained indefinitely unless future retention policies are introduced.
+- **Backup & Restore:** Rely on Firebase-managed backups; document recovery procedures in runbook.
+
+## LLM Interaction Model
+
+### Prompt Catalog
+
+| Flow | System Prompt (Summary) | Output Contract |
+| ---- | ----------------------- | --------------- |
+| Intent Classification | Classify user text as `LOG` or `QUERY`; emit keywords. | `{ "intent": "LOG" | "QUERY", "keywords": [string] }` |
+| Daily Summary | Convert list of logs into a friendly paragraph. | `{ "summary": string }` |
+| Memory Expansion | Expand a log into first-person narrative. | `{ "story": string }` |
+
+### Guardrails
+- Enforce JSON-only responses by validating payloads client-side.
+- Apply retry with exponential backoff (3 attempts) for transient failures; fall back to cached results when available.
+- Log latency and error rates per LLM call for monitoring.
+
+## Security, Privacy, and Compliance
+- **Authentication:** Anonymous Firebase Auth with device-bound UID; future enhancement to support caregiver-linked accounts.
+- **Authorization:** Firestore Security Rules restrict reads/writes to the authenticated user’s path.
+- **Data in Transit:** All calls to Firebase and Gemini performed over HTTPS; enforce TLS 1.2+.
+- **PII Handling:** No explicit PII collected; treat log content as sensitive. Future work may include configurable redaction.
+- **Compliance Considerations:** Review against HIPAA if used for medical reminders; currently targeting consumer use without PHI commitments.
+
+## Operational Readiness
+- **Deployment:**
+  - Web: Firebase Hosting with CI/CD pipeline (GitHub Actions) for automated builds.
+  - Mobile: Manual store submissions for MVP; plan Fastlane automation in Phase 2.
+- **Monitoring:**
+  - Use Firebase Analytics for user flows.
+  - Leverage Cloud Logging for Firestore and Gemini interactions.
+  - Establish alert thresholds for LLM failure rate (>5%) and Firestore error spikes.
+- **Runbooks:** Document incident response for LLM outages (fallback messaging) and Firestore read quota exhaustion.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| ---- | ------ | ---------- |
+| LLM misclassification of queries | Incorrect responses reduce trust. | Add manual correction option; monitor misclassification feedback. |
+| Speech recognition inaccuracies | Logs become unusable. | Provide manual text entry fallback; consider per-device calibration tips. |
+| LLM latency spikes | Exceeds 5-second SLA. | Cache previous summaries; parallelize Firestore query while awaiting LLM response. |
+| User privacy concerns | Adoption barrier. | Clear privacy messaging; ensure at-rest encryption and transparent policies. |
+| Vendor lock-in (Gemini) | Future cost or availability issues. | Abstract LLM client; evaluate OpenAI/AWS Bedrock alternatives in Phase 3. |
+
+## Testing and Validation
+- **Automated:** Widget and integration tests for critical flows (voice capture mocked, log persistence, query responses).
+- **Manual:** Accessibility audits (screen reader, high-contrast mode), exploratory testing for edge speech inputs.
+- **Monitoring Validation:** Synthetic canary tests hitting Gemini and Firestore endpoints hourly.
+- **User Research:** Conduct usability sessions with seniors to validate voice-first UX and error recovery.
+
+## Roadmap
+- **Phase 0 – Setup:** Configure Firebase project, authentication, security rules, and Gemini API keys. Establish CI/CD.
+- **Phase 1 – MVP:** Deliver core voice logging and querying across web, iOS, and Android; onboard pilot cohort.
+- **Phase 2 – Platform Enhancements:** Add platform-specific affordances (widgets, Wear OS companion), automate mobile deployments.
+- **Phase 3 – Conversational Enrichment:** Introduce text-to-speech feedback and optional caregiver dashboards.
+- **Phase 4 – Rich Media:** Enable multimedia attachments stored in Firebase Storage and linked to logs.
+
+## Dependencies and Assumptions
+- Stable access to Google Gemini with sufficient quota for target user volume.
+- User devices support required speech APIs; fallback text input available otherwise.
+- Firebase project configured with billing to unlock necessary quotas (Firestore, Functions, Hosting).
+- Pilot users consent to anonymized telemetry for performance tuning.
+
+## Glossary
+- **Intent-less UI:** Interface pattern where the system infers user intent without explicit user selection.
+- **LLM:** Large Language Model providing natural-language understanding and generation.
+- **MVP:** Minimum Viable Product delivering core value with limited scope.
+- **WCAG:** Web Content Accessibility Guidelines, version 2.1 AA compliance level.
