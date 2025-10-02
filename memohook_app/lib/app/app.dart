@@ -50,6 +50,7 @@ class MemohookApp extends StatelessWidget {
         ),
         Provider<MemoryLogRepository>(
           create: (_) => InMemoryLogRepository(seed: seedLogs),
+          dispose: (_, repo) => repo.dispose(),
         ),
         ChangeNotifierProvider(
           create: (context) => MemohookController(

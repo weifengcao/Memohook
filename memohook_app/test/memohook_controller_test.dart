@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:memohook_app/core/memohook_controller.dart';
@@ -52,17 +54,37 @@ class _FakeAssistantService extends AssistantService {
 }
 
 class _FakeLogRepository extends MemoryLogRepository {
-  _FakeLogRepository(List<MemoryLog> seed) : _logs = List.of(seed);
+  _FakeLogRepository(List<MemoryLog> seed) : _logs = List.of(seed) {
+    _controller = StreamController<List<MemoryLog>>.broadcast(onListen: _emit);
+  }
 
   final List<MemoryLog> _logs;
+  late final StreamController<List<MemoryLog>> _controller;
+
+  @override
+  Future<void> initialize() async {
+    _emit();
+  }
+
+  @override
+  Stream<List<MemoryLog>> watchLogs() => _controller.stream;
 
   @override
   Future<void> addLog(MemoryLog log) async {
     _logs.insert(0, log);
+    _emit();
   }
 
   @override
-  Future<List<MemoryLog>> loadInitialLogs() async => List.unmodifiable(_logs);
+  void dispose() {
+    _controller.close();
+  }
+
+  void _emit() {
+    if (!_controller.isClosed) {
+      _controller.add(List.unmodifiable(_logs));
+    }
+  }
 }
 
 void main() {
@@ -71,6 +93,7 @@ void main() {
       'toggleListening captures log entries when assistant chooses log',
       () async {
         final repo = _FakeLogRepository([]);
+        addTearDown(repo.dispose);
         final speech = _FakeSpeechCaptureService(
           'Log fed the cat and cleaned bowls.',
         );
@@ -85,6 +108,7 @@ void main() {
           speechService: speech,
           assistantService: assistant,
         );
+        addTearDown(controller.dispose);
         await controller.ready;
 
         expect(controller.logs, isEmpty);
@@ -105,6 +129,7 @@ void main() {
           createdAt: DateTime(2024, 10, 1, 21, 0),
         );
         final repo = _FakeLogRepository([seedLog]);
+        addTearDown(repo.dispose);
         final speech = _FakeSpeechCaptureService('Did I lock the door?');
         final assistant = _FakeAssistantService(
           decision: AssistantDecision.query(question: 'Did I lock the door?'),
@@ -116,6 +141,7 @@ void main() {
           speechService: speech,
           assistantService: assistant,
         );
+        addTearDown(controller.dispose);
         await controller.ready;
 
         expect(controller.queryResult, isNull);

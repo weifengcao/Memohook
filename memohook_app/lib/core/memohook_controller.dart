@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../features/logs/memory_log.dart';
@@ -12,13 +14,18 @@ class MemohookController extends ChangeNotifier {
     required AssistantService assistantService,
   }) : _logRepository = logRepository,
        _speechService = speechService,
-       _assistantService = assistantService {
-    ready = _bootstrap();
+       _assistantService = assistantService,
+       _readyCompleter = Completer<void>() {
+    ready = _readyCompleter.future;
+    _bootstrap();
   }
 
   final MemoryLogRepository _logRepository;
   final SpeechCaptureService _speechService;
   final AssistantService _assistantService;
+  final Completer<void> _readyCompleter;
+
+  StreamSubscription<List<MemoryLog>>? _logSubscription;
 
   bool _isInitializing = true;
   bool _isListening = false;
@@ -39,9 +46,25 @@ class MemohookController extends ChangeNotifier {
 
   Future<void> _bootstrap() async {
     await _speechService.initialize();
-    _logs = await _logRepository.loadInitialLogs();
-    _isInitializing = false;
-    notifyListeners();
+    await _logRepository.initialize();
+
+    _logSubscription = _logRepository.watchLogs().listen(
+      (logs) {
+        _logs = logs;
+        if (_isInitializing) {
+          _isInitializing = false;
+        }
+        if (!_readyCompleter.isCompleted) {
+          _readyCompleter.complete();
+        }
+        notifyListeners();
+      },
+      onError: (_, __) {
+        if (!_readyCompleter.isCompleted) {
+          _readyCompleter.complete();
+        }
+      },
+    );
   }
 
   Future<void> toggleListening() async {
@@ -135,7 +158,11 @@ class MemohookController extends ChangeNotifier {
   Future<void> _appendLog(String content) async {
     final log = MemoryLog.create(content: content);
     await _logRepository.addLog(log);
-    _logs = [log, ..._logs];
-    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _logSubscription?.cancel();
+    super.dispose();
   }
 }

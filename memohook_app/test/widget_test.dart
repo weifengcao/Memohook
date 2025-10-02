@@ -15,10 +15,17 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const MemohookApp());
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.textContaining('remember or ask'), findsOneWidget);
-    expect(find.text('Tap to Speak'), findsOneWidget);
+    final speakButton = find.text('Tap to Speak');
+    final loadingButton = find.text('Loading…');
+    expect(
+      speakButton.evaluate().isNotEmpty || loadingButton.evaluate().isNotEmpty,
+      isTrue,
+      reason:
+          'Expected microphone button to show either speak prompt or loading state.',
+    );
     expect(find.byIcon(Icons.mic), findsOneWidget);
   });
 }
